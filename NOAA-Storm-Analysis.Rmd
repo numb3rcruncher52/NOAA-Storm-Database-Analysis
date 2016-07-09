@@ -163,10 +163,26 @@ print(average_fatalities_table, type = "html")
 
 This data shows us that heat/excessive heat have by far the highest mean
 fatalities of any storm type, and some very large maximums for any single storm.
-Rip currents have a higher median of fatalities (albeit at 1), but this number
-is driven up because in the handbook describing reporting it denotes that a 
-rip current is only recorded if a drowning or near-drowning rescue is attempted
-because of a rip current.  
+To see if those high maximums are just driving up the mean let's look at the
+percentage of occurrences that had a fatality:
+```{r}
+top_fatality_storms <- storms_final2 %>% 
+    filter(EVTYPE_NEW %in% average_fatalities$EVTYPE_NEW) %>% 
+    group_by(EVTYPE_NEW) %>%
+    summarise(fatality_perc = mean(FATALITIES > 0)) %>%
+    arrange(-fatality_perc)
+p <- ggplot(top_fatality_storms, aes(y = fatality_perc, 
+                                     x = factor(EVTYPE_NEW, 
+                                    levels = top_fatality_storms$EVTYPE_NEW))) +
+    geom_bar(stat='identity')
+p <- p + ggtitle("Fatality % for High Average-Fatality Storm Types") +
+    labs(x = "Storm Type", y = "% of Occurrences with Fatality")
+```
+Rip currents have the highest percentage of fatalities, but after looking into
+the documentation it looks like this number is driven up because a
+rip current is only recorded if a drowning or near-drowning rescue is attempted.
+Because of this we can feel comfortable stating that heat/excessive heat is the
+most deadly storm type.  
 Let's take a look at just general injuries to see if our results are similar:
 ```{r}
 average_injuries <- storms_final2 %>% group_by(EVTYPE_NEW) %>% 
@@ -177,26 +193,12 @@ average_injuries <- storms_final2 %>% group_by(EVTYPE_NEW) %>%
 average_injuries_table <- xtable(average_injuries)
 print(average_injuries_table, type = "html")
 ```
-The data for injuries is a little closer, let's examine the top 10 highest
-mean injury storm types:
-```{r}
-topinj_storms <- storms_final2 %>% 
-    filter(EVTYPE_NEW %in% average_injuries$EVTYPE_NEW)
-p <- ggplot(data = average_injuries, 
-            mapping = aes(x = factor(EVTYPE_NEW), y = AVG_INJ)) + geom_bar()
-```
 
-
-
-From basic summaries of the data, we can tell that most storms don't cause a 
-single injury or fatality, as the median of both columns is 0. Let's figure out
-what percentage of storms have at least one injury or fatality, and then look at
-a summary of that subset of data
-```{r}
-sum(storms$FATALITIES[storms$FATALITIES >= 1])/nrow(storms)*100
-sum(storms$INJURIES[storms$INJURIES >= 1])/nrow(storms)*100
-```
-
+The table data for injuries shows heat and excessive heat as having the most 
+average injuries per occurrence as well. This even lines up with our fatality
+information as tornadoes come in third despite having some high outliers driving
+up the mean. 
+####Result: Heat & Excessive Heat are the most harmful storm types to health
 
 ### Analysis of Economic Impact
 To analyze the effect on the economy of the different storm types we can 
@@ -222,4 +224,4 @@ other storm type, Hurricanes come in second and have a much higher median of
 total damage, suggesting that any given hurricane has a higher likelihood of 
 impacting the economy more drastically than any other storm type. 
 
-
+####Result: Hurricanes are the most harmful storm type for the economy
