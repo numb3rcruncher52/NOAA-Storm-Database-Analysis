@@ -19,6 +19,7 @@ storing it in a dataframe, and caching the result since it's a moderately
 large dataset:
 ```{r, cache=TRUE}
 library(dplyr)
+library(ggplot2)
 data_url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
 download.file(data_url,"NOAAdata.csv.bz2", method="curl")
 storms <- read.csv("NOAAdata.csv.bz2",stringsAsFactors = FALSE)
@@ -79,12 +80,69 @@ multiple instances in the Remarks that mentions damage of some kind. Since the
 most common unit of measure by far is thousands, I will simply replace any of 
 these strange units of measure with thousands.
 ```{r}
-storms2 <- storms2 %>% 
-    mutate(PROPDMGEXP = ifelse(PROPDMGEXP %in% check_uom, 'K', toupper(PROPDMGEXP)), 
-           CROPDMGEXP = ifelse(CROPDMGEXP %in% check_uom, 'K', toupper(CROPDMGEXP)))
+storms_clean <- storms2 %>% 
+    mutate(PROPDMGEXP = ifelse(PROPDMGEXP %in% check_uom, 'K', 
+                               toupper(PROPDMGEXP)), 
+           CROPDMGEXP = ifelse(CROPDMGEXP %in% check_uom, 'K', 
+                               toupper(CROPDMGEXP)))
+## Replace the units of measure with numbers
+clean_uom <- data.frame(old_uom = c('H','K','M','B',''), 
+                        new_uom = c(100,1000,1000000,1000000000,0))
+storms_clean <- storms_clean %>% left_join(clean_uom, 
+                                           by = c('PROPDMGEXP' = 'old_uom'))
+storms_clean <- storms_clean %>% left_join(clean_uom, 
+                                           by = c('CROPDMGEXP' = 'old_uom'))
+storms_clean <- storms_clean %>% mutate(TOTDMG = PROPDMG * new_uom.x + 
+                                            CROPDMG * new_uom.y)
+storms_final <- storms_clean %>% select(EVTYPE, FATALITIES, INJURIES, TOTDMG)
+head(storms_final)
 ```
+Now that we have clean measures of damage, injuries, and fatalities, all that
+is left to do is clean the EVTYPE for analysis. Let's examine only the EVTYPEs
+that have had damage, fatalities, or injuries:
+```{r}
+storm_types_new <- storms_final %>% 
+    filter((FATALITIES > 0) | (INJURIES > 0) | (TOTDMG > 0)) %>%
+    count(EVTYPE) %>% arrange(-n)
+storm_types_new
+summary(storm_types_new$n)
+```
+There are now only half as many storm categorizations, but we can make a few
+clean ups to try and consolidate them even more:
+```{r}
+storms_final$EVTYPE_NEW <- gsub("TSTM ","THUNDERSTORM ",storms_final$EVTYPE)
+storms_final$EVTYPE_NEW <- gsub("WINDS","WIND",storms_final$EVTYPE_NEW)
+storms_final$EVTYPE_NEW <- toupper(storms_final$EVTYPE_NEW)
+```
+There are many more cleanups that could be done, but if we also filter out
+all the storms that have less than 100 occurrences, we will have a much more 
+clean data set.
+```{r}
+storm_types_new <- storms_final %>% 
+    filter((FATALITIES > 0) | (INJURIES > 0) | (TOTDMG > 0)) %>%
+    count(EVTYPE_NEW) %>% filter(n >= 100)
+storms_final2 <- storms_final %>% 
+    filter(EVTYPE_NEW %in% storm_types_new$EVTYPE_NEW)
+perc_remain <- nrow(storms_final2)/nrow(storms_final)*100
+```
+We lost some of the original data but still have `r perc_remain`% of the
+original data good for analysis.
 
+## Results
 
+### Analysis of Economic Impact
+To analyze the effect on the economy of the different storm types we can 
+calculate some different summary statistics by storm like mean, median, and
+maximum:
+```{r}
+average_damage <- storms_final2 %>% group_by(EVTYPE_NEW) %>% 
+    summarise(n = n(), AVG_DMG = mean(TOTDMG), MED_DMG = median(TOTDMG), 
+              MAX_DMG = max(TOTDMG)) %>%
+    arrange(-AVG_DMG) %>% top_n(5,wt = AVG_DMG)
+```
+We can then plot some box-and-whisker plots for the top 5 storm types by 
+average total damage to make our best inference on which storm type impacts
+the economy most:
 
 
 ```{r}
@@ -101,5 +159,3 @@ sum(storms$INJURIES[storms$INJURIES >= 1])/nrow(storms)*100
 ```
 
 
-
-## Results
