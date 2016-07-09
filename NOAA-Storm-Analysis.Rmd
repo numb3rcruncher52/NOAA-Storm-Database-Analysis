@@ -1,5 +1,5 @@
 ---
-title: "NOAA-Storm-Analysis"
+title: "US Storms with the most harmful public health and economic consequences"
 author: "Max Lyons"
 date: "July 9, 2016"
 output: html_document
@@ -7,41 +7,56 @@ output: html_document
 
 ## Synopsis
 This is an analysis of the U.S. National Oceanic and Atmospheric 
-Administration's (NOAA) storm database for the reproducible research course
-on Coursera. The goal of the analysis is to determine which types of storm 
-events have the greatest impact on 1) population health and 2) the economy
-across the U.S.
+Administration's (NOAA) storm database, with the goal of determining which types
+of storm events have the most harmful impact on 1) population health and 
+2) the economy across the U.S. The data comes from the national weather service
+and includes storm events starting in 1950 up through November 2011. The count
+of injuries and fatalities for each storm type was used as a measure of the 
+harm to public health, and the analysis showed that both heat and excessive heat
+were most harmful to publich health in terms of both injuries and fatalities. 
+To measure the economic impact, the total US dollar value in damages was used,
+and the results showed that hurricanes had the highest median damage value of
+all storm types along with the second highest mean, which suggests that any
+given hurricane has the most likelihood of having a negative impact on the 
+economy.
 
 
 ## Data Processing
+Lets load some packages that we will use throughout the analysis for cleaning, 
+graphing, and presenting the data.
+```{r}
+library(dplyr)
+library(ggplot2)
+library(xtable)
+```
+
 The first step in our analysis is pulling the data from the Coursera website,
 storing it in a dataframe, and caching the result since it's a moderately
 large dataset:
 ```{r, cache=TRUE}
-library(dplyr)
-library(ggplot2)
 data_url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
 download.file(data_url,"NOAAdata.csv.bz2", method="curl")
 storms <- read.csv("NOAAdata.csv.bz2",stringsAsFactors = FALSE)
 ```
 Let's quickly check the structure of the dataset to see what fields are 
-available and compare to the online information about the storm database.
+available and compare to the online documentation about the storm database.
 ```{r}
 str(storms)
 ```
 The dataset appears to have information about a few major categories: location,
 time span, fatalities/injuries, and damage. Since we know that we want to 
 identify the types of events that have the biggest impact on population health 
-and the economy, we will focus on the fatalities/injuries, damage, and event
-type data.
+and the economy, we will focus on the fatalities/injuries, damage, and storm 
+event type data.
 ```{r}
-storms2 <- storms %>% select(EVTYPE, FATALITIES, INJURIES, PROPDMG:CROPDMGEXP, REMARKS)
+storms_final_fields <- storms %>% 
+    select(EVTYPE, FATALITIES, INJURIES, PROPDMG:CROPDMGEXP, REMARKS)
 ```
 Let's look at each of our fields to see what kind of preprocessing we may need
 to do:
 ### EVTYPE
 ```{r}
-storm_types <- storms2 %>% count(EVTYPE) %>% arrange(-n)
+storm_types <- storms_final_fields %>% count(EVTYPE) %>% arrange(-n)
 storm_types
 summary(storm_types$n)
 ```
@@ -50,12 +65,12 @@ summary of the counts for each type, at least 75% of the labels have occurences
 of 5 or less. We will need to go through and clean up some of the labels, but
 let's see if we can reduce the total number of labels by focusing on the types
 of storms that effect population health or the economy.
-### FATALITIES & INJURIES: Population Health
+### Population Health factors
 According to the National Weather Service Documentation, Direct fatalities and
 injuries from storms are classified in the FATALITIES and INJURIES columns. We 
 will use these columns without any additional processing to evaluate population
 health.
-### Economy
+### Economic factors
 There are four fields that are utilized to provide information about the 
 economic impact of the storms: PROPDMG, PROPDMGEXP, CROPDMG, and CROPDMGEXP.
 Both PROPDMG and CROPDMG list the damage amounts for property and crops, 
@@ -63,15 +78,15 @@ respectively, and the other two columns give a unit of measure. We will need to
 combine the values and unit of measure columns to compare damage across all 
 storms. Let's check out the different units of measure:
 ```{r}
-table(storms2$PROPDMGEXP)
-table(storms2$CROPDMGEXP)
+table(storms_final_fields$PROPDMGEXP)
+table(storms_final_fields$CROPDMGEXP)
 ```
 From these tables we can see units of measure for thousands (k/K), 
 millions (M/m), and billions (B/b). I will also assume that (h/H) is hundreds, 
-and we will have to investigate the (?) and the single numbers:
+and we will have to investigate the (?,-,+) and the single number values:
 ```{r}
 check_uom <- c('?','+','-','0','1','2','3','4','5','6','7','8')
-questions <- storms2 %>% filter((PROPDMGEXP %in% check_uom) | 
+questions <- storms_final_fields %>% filter((PROPDMGEXP %in% check_uom) | 
                                     (CROPDMGEXP %in% check_uom))
 ```
 After looking into all the strange units of measure it appears that there isn't
@@ -80,7 +95,7 @@ multiple instances in the Remarks that mentions damage of some kind. Since the
 most common unit of measure by far is thousands, I will simply replace any of 
 these strange units of measure with thousands.
 ```{r}
-storms_clean <- storms2 %>% 
+storms_clean <- storms_final_fields %>% 
     mutate(PROPDMGEXP = ifelse(PROPDMGEXP %in% check_uom, 'K', 
                                toupper(PROPDMGEXP)), 
            CROPDMGEXP = ifelse(CROPDMGEXP %in% check_uom, 'K', 
@@ -114,6 +129,7 @@ storms_final$EVTYPE_NEW <- gsub("TSTM ","THUNDERSTORM ",storms_final$EVTYPE)
 storms_final$EVTYPE_NEW <- gsub("WINDS","WIND",storms_final$EVTYPE_NEW)
 storms_final$EVTYPE_NEW <- toupper(storms_final$EVTYPE_NEW)
 ```
+
 There are many more cleanups that could be done, but if we also filter out
 all the storms that have less than 100 occurrences, we will have a much more 
 clean data set.
@@ -129,6 +145,58 @@ We lost some of the original data but still have `r perc_remain`% of the
 original data good for analysis.
 
 ## Results
+We can now use our clean storm data to analyze which storm types have the 
+largest impact on population health and the economy on average.
+### Analysis of Impact on Population Health
+To analyze which storm types most adversely affect population health we can 
+analyze fatalities and injuries separately and combine our analysis as 
+appropriate.
+```{r}
+average_fatalities <- storms_final2 %>% group_by(EVTYPE_NEW) %>% 
+    summarise(n = n(), AVG_FAT = round(mean(FATALITIES),2), 
+              MED_FAT = median(FATALITIES), 
+              MAX_FAT = max(FATALITIES)) %>%
+    arrange(-AVG_FAT) %>% top_n(10, wt = AVG_FAT)
+average_fatalities_table <- xtable(average_fatalities)
+print(average_fatalities_table, type = "html")
+```
+
+This data shows us that heat/excessive heat have by far the highest mean
+fatalities of any storm type, and some very large maximums for any single storm.
+Rip currents have a higher median of fatalities (albeit at 1), but this number
+is driven up because in the handbook describing reporting it denotes that a 
+rip current is only recorded if a drowning or near-drowning rescue is attempted
+because of a rip current.  
+Let's take a look at just general injuries to see if our results are similar:
+```{r}
+average_injuries <- storms_final2 %>% group_by(EVTYPE_NEW) %>% 
+    summarise(n = n(), AVG_INJ = round(mean(INJURIES),2), 
+              MED_INJ = median(INJURIES), 
+              MAX_INJ = max(INJURIES)) %>%
+    arrange(-AVG_INJ) %>% top_n(10, wt = AVG_INJ)
+average_injuries_table <- xtable(average_injuries)
+print(average_injuries_table, type = "html")
+```
+The data for injuries is a little closer, let's examine the top 10 highest
+mean injury storm types:
+```{r}
+topinj_storms <- storms_final2 %>% 
+    filter(EVTYPE_NEW %in% average_injuries$EVTYPE_NEW)
+p <- ggplot(data = average_injuries, 
+            mapping = aes(x = factor(EVTYPE_NEW), y = AVG_INJ)) + geom_bar()
+```
+
+
+
+From basic summaries of the data, we can tell that most storms don't cause a 
+single injury or fatality, as the median of both columns is 0. Let's figure out
+what percentage of storms have at least one injury or fatality, and then look at
+a summary of that subset of data
+```{r}
+sum(storms$FATALITIES[storms$FATALITIES >= 1])/nrow(storms)*100
+sum(storms$INJURIES[storms$INJURIES >= 1])/nrow(storms)*100
+```
+
 
 ### Analysis of Economic Impact
 To analyze the effect on the economy of the different storm types we can 
@@ -138,24 +206,20 @@ maximum:
 average_damage <- storms_final2 %>% group_by(EVTYPE_NEW) %>% 
     summarise(n = n(), AVG_DMG = mean(TOTDMG), MED_DMG = median(TOTDMG), 
               MAX_DMG = max(TOTDMG)) %>%
-    arrange(-AVG_DMG) %>% top_n(5,wt = AVG_DMG)
+    arrange(-AVG_DMG) %>% top_n(5, wt = AVG_DMG)
 ```
 We can then plot some box-and-whisker plots for the top 5 storm types by 
 average total damage to make our best inference on which storm type impacts
 the economy most:
-
-
 ```{r}
-summary(storms$FATALITIES)
-summary(storms$INJURIES)
+topdmg_storms <- storms_final2 %>% 
+    filter(EVTYPE_NEW %in% average_damage$EVTYPE_NEW)
+p <- ggplot(data = topdmg_storms, 
+            mapping = aes(x = factor(EVTYPE_NEW), y = TOTDMG)) + geom_boxplot()
 ```
-From basic summaries of the data, we can tell that most storms don't cause a 
-single injury or fatality, as the median of both columns is 0. Let's figure out
-what percentage of storms have at least one injury or fatality, and then look at
-a summary of that subset of data
-```{r}
-sum(storms$FATALITIES[storms$FATALITIES >= 1])/nrow(storms)*100
-sum(storms$INJURIES[storms$INJURIES >= 1])/nrow(storms)*100
-```
+Despite the fact that storm surges have the highest mean total damage of any
+other storm type, Hurricanes come in second and have a much higher median of 
+total damage, suggesting that any given hurricane has a higher likelihood of 
+impacting the economy more drastically than any other storm type. 
 
 
