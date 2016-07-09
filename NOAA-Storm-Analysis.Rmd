@@ -31,10 +31,62 @@ str(storms)
 The dataset appears to have information about a few major categories: location,
 time span, fatalities/injuries, and damage. Since we know that we want to 
 identify the types of events that have the biggest impact on population health 
-and the economy, we will focus on the fatalities/injuries and damage data
-### Fatalities/Injuries Data
+and the economy, we will focus on the fatalities/injuries, damage, and event
+type data.
+```{r}
+storms2 <- storms %>% select(EVTYPE, FATALITIES, INJURIES, PROPDMG:CROPDMGEXP, REMARKS)
+```
+Let's look at each of our fields to see what kind of preprocessing we may need
+to do:
+### EVTYPE
+```{r}
+storm_types <- storms2 %>% count(EVTYPE) %>% arrange(-n)
+storm_types
+summary(storm_types$n)
+```
+We can see that there are 985 different labels for storms, and looking at the
+summary of the counts for each type, at least 75% of the labels have occurences
+of 5 or less. We will need to go through and clean up some of the labels, but
+let's see if we can reduce the total number of labels by focusing on the types
+of storms that effect population health or the economy.
+### FATALITIES & INJURIES: Population Health
 According to the National Weather Service Documentation, Direct fatalities and
-injuries from storms are classified in the FATALITIES and INJURIES columns.
+injuries from storms are classified in the FATALITIES and INJURIES columns. We 
+will use these columns without any additional processing to evaluate population
+health.
+### Economy
+There are four fields that are utilized to provide information about the 
+economic impact of the storms: PROPDMG, PROPDMGEXP, CROPDMG, and CROPDMGEXP.
+Both PROPDMG and CROPDMG list the damage amounts for property and crops, 
+respectively, and the other two columns give a unit of measure. We will need to
+combine the values and unit of measure columns to compare damage across all 
+storms. Let's check out the different units of measure:
+```{r}
+table(storms2$PROPDMGEXP)
+table(storms2$CROPDMGEXP)
+```
+From these tables we can see units of measure for thousands (k/K), 
+millions (M/m), and billions (B/b). I will also assume that (h/H) is hundreds, 
+and we will have to investigate the (?) and the single numbers:
+```{r}
+check_uom <- c('?','+','-','0','1','2','3','4','5','6','7','8')
+questions <- storms2 %>% filter((PROPDMGEXP %in% check_uom) | 
+                                    (CROPDMGEXP %in% check_uom))
+```
+After looking into all the strange units of measure it appears that there isn't
+any specific pattern to having a number as the unit of measure, but there are 
+multiple instances in the Remarks that mentions damage of some kind. Since the 
+most common unit of measure by far is thousands, I will simply replace any of 
+these strange units of measure with thousands.
+```{r}
+storms2 <- storms2 %>% 
+    mutate(PROPDMGEXP = ifelse(PROPDMGEXP %in% check_uom, 'K', toupper(PROPDMGEXP)), 
+           CROPDMGEXP = ifelse(CROPDMGEXP %in% check_uom, 'K', toupper(CROPDMGEXP)))
+```
+
+
+
+
 ```{r}
 summary(storms$FATALITIES)
 summary(storms$INJURIES)
