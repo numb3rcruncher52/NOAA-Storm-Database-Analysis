@@ -151,7 +151,7 @@ largest impact on population health and the economy on average.
 To analyze which storm types most adversely affect population health we can 
 analyze fatalities and injuries separately and combine our analysis as 
 appropriate.
-```{r}
+```{r, results="asis"}
 average_fatalities <- storms_final2 %>% group_by(EVTYPE_NEW) %>% 
     summarise(n = n(), AVG_FAT = round(mean(FATALITIES),2), 
               MED_FAT = median(FATALITIES), 
@@ -177,6 +177,8 @@ p <- ggplot(top_fatality_storms, aes(y = fatality_perc,
     geom_bar(stat='identity')
 p <- p + ggtitle("Fatality % for High Average-Fatality Storm Types") +
     labs(x = "Storm Type", y = "% of Occurrences with Fatality")
+p <- p + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+p
 ```
 Rip currents have the highest percentage of fatalities, but after looking into
 the documentation it looks like this number is driven up because a
@@ -184,7 +186,7 @@ rip current is only recorded if a drowning or near-drowning rescue is attempted.
 Because of this we can feel comfortable stating that heat/excessive heat is the
 most deadly storm type.  
 Let's take a look at just general injuries to see if our results are similar:
-```{r}
+```{r, results="asis"}
 average_injuries <- storms_final2 %>% group_by(EVTYPE_NEW) %>% 
     summarise(n = n(), AVG_INJ = round(mean(INJURIES),2), 
               MED_INJ = median(INJURIES), 
@@ -197,7 +199,8 @@ print(average_injuries_table, type = "html")
 The table data for injuries shows heat and excessive heat as having the most 
 average injuries per occurrence as well. This even lines up with our fatality
 information as tornadoes come in third despite having some high outliers driving
-up the mean. 
+up the mean.  
+
 ####Result: Heat & Excessive Heat are the most harmful storm types to health
 
 ### Analysis of Economic Impact
@@ -210,15 +213,7 @@ average_damage <- storms_final2 %>% group_by(EVTYPE_NEW) %>%
               MAX_DMG = max(TOTDMG)) %>%
     arrange(-AVG_DMG) %>% top_n(5, wt = AVG_DMG)
 ```
-We can then plot some box-and-whisker plots for the top 5 storm types by 
-average total damage to make our best inference on which storm type impacts
-the economy most:
-```{r}
-topdmg_storms <- storms_final2 %>% 
-    filter(EVTYPE_NEW %in% average_damage$EVTYPE_NEW)
-p <- ggplot(data = topdmg_storms, 
-            mapping = aes(x = factor(EVTYPE_NEW), y = TOTDMG)) + geom_boxplot()
-```
+
 Despite the fact that storm surges have the highest mean total damage of any
 other storm type, Hurricanes come in second and have a much higher median of 
 total damage, suggesting that any given hurricane has a higher likelihood of 
