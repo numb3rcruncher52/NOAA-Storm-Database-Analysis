@@ -1,0 +1,24 @@
+---
+title: "NOAA-Storm-Analysis"
+author: "Max Lyons"
+date: "July 9, 2016"
+output: html_document
+---
+
+## Synopsis
+This is an analysis of the U.S. National Oceanic and Atmospheric 
+Administration's (NOAA) storm database for the reproducible research course
+on Coursera.
+
+
+## Data Processing
+The first step in our analysis is pulling the data from the Coursera website:
+```{r, cache=TRUE}
+data_url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+download.file(data_url,"NOAAdata.csv.bz2", method="curl")
+storms <- read.csv("NOAAdata.csv.bz2",stringsAsFactors = FALSE)
+```
+
+
+
+## Results
